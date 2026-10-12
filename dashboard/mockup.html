@@ -1,0 +1,639 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<title>KSA Escalation Console</title>
+<style>
+  /* ---- Dark security-console theme (single, committed visual world) ---- */
+  :root{
+    --bg:#0B0E14; --panel:#111722; --panel-2:#161E2B; --panel-3:#1B2434;
+    --border:#232D3D; --border-strong:#31405A;
+    --ink:#E7ECF5; --ink-2:#93A1B8; --ink-3:#5E6E88;
+    --accent:#4C8DFF; --accent-2:#22C7B8; --accent-dim:rgba(76,141,255,.14);
+    --crit:#FB5C6B; --crit-dim:rgba(251,92,107,.14);
+    --high:#F5A524; --high-dim:rgba(245,165,36,.14);
+    --med:#EBCB4B;  --med-dim:rgba(235,203,75,.13);
+    --low:#35C08A;  --low-dim:rgba(53,192,138,.14);
+    /* graph entity categorical (CVD-validated) */
+    --n-sa:#4C8DFF; --n-role:#22C7B8; --n-crole:#A78BFA;
+    --n-work:#F472B6; --n-secret:#F5A524; --n-sink:#FB5C6B;
+    --shadow:0 1px 0 rgba(255,255,255,.02),0 8px 24px rgba(0,0,0,.35);
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans",system-ui,sans-serif;
+    --disp:"Chivo","IBM Plex Sans",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;line-height:1.45}
+  a{color:inherit}
+  h1,h2,h3{font-family:var(--disp);margin:0;text-wrap:balance;letter-spacing:-.01em}
+  .mono{font-family:var(--mono)}
+  .num{font-family:var(--disp);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+  /* ---- shell ---- */
+  .shell{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+  .rail{background:linear-gradient(180deg,#0D131D,#0A0E15);border-right:1px solid var(--border);
+    padding:18px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px}
+  .brand .mark{width:30px;height:30px;border-radius:8px;flex:none;position:relative;
+    background:radial-gradient(120% 120% at 30% 20%,#4C8DFF,#1E4FB0);
+    box-shadow:0 0 0 1px rgba(76,141,255,.4),0 6px 16px rgba(76,141,255,.28)}
+  .brand .mark::after{content:"";position:absolute;inset:8px;border-radius:3px;
+    border:2px solid rgba(255,255,255,.85);border-right-color:transparent;transform:rotate(-20deg)}
+  .brand b{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:-.01em}
+  .brand span{display:block;font-size:10.5px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.04em}
+  .nav-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+    padding:14px 10px 6px}
+  .nav{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;cursor:pointer;
+    color:var(--ink-2);font-size:13.5px;font-weight:500;border:1px solid transparent;user-select:none}
+  .nav:hover{background:var(--panel);color:var(--ink)}
+  .nav.active{background:var(--accent-dim);color:#dce8ff;border-color:rgba(76,141,255,.3)}
+  .nav svg{width:17px;height:17px;flex:none;opacity:.9}
+  .nav .count{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .nav.active .count{color:var(--accent)}
+  .rail .foot{margin-top:auto;font-size:11px;color:var(--ink-3);padding:10px;
+    border-top:1px solid var(--border);font-family:var(--mono)}
+
+  /* ---- main ---- */
+  .main{min-width:0;display:flex;flex-direction:column}
+  .topbar{display:flex;align-items:center;gap:16px;padding:14px 26px;border-bottom:1px solid var(--border);
+    background:rgba(11,14,20,.7);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20}
+  .topbar .ctx{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:13px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--low);box-shadow:0 0 0 3px var(--low-dim)}
+  .pill-mode{margin-left:2px;font-size:10.5px;font-family:var(--mono);color:var(--low);
+    border:1px solid rgba(53,192,138,.35);background:var(--low-dim);padding:2px 8px;border-radius:999px;letter-spacing:.03em}
+  .topbar .spacer{flex:1}
+  .meta{font-size:11.5px;color:var(--ink-3);font-family:var(--mono);text-align:right;line-height:1.35}
+  .btn{font-family:var(--sans);font-weight:600;font-size:13px;color:#04101f;background:var(--accent);
+    border:none;border-radius:9px;padding:9px 15px;cursor:pointer;display:flex;align-items:center;gap:8px;
+    box-shadow:0 6px 16px rgba(76,141,255,.3)}
+  .btn:hover{filter:brightness(1.06)}
+  .btn svg{width:15px;height:15px}
+
+  .view{padding:24px 26px 40px;display:none;animation:fade .25s ease}
+  .view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.view{animation:none}}
+
+  .view-h{display:flex;align-items:baseline;gap:12px;margin-bottom:4px}
+  .view-h h1{font-size:20px;font-weight:700}
+  .view-h .sub{color:var(--ink-3);font-size:12.5px;font-family:var(--mono)}
+  .lead{color:var(--ink-2);font-size:13px;margin:0 0 22px;max-width:70ch}
+
+  /* ---- KPI tiles ---- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:22px}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 17px;
+    position:relative;overflow:hidden}
+  .kpi .cap{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+    display:flex;align-items:center;gap:7px}
+  .kpi .cap svg{width:14px;height:14px}
+  .kpi .v{font-size:34px;font-weight:900;margin-top:9px;line-height:1}
+  .kpi .d{font-size:11.5px;color:var(--ink-2);margin-top:7px;font-family:var(--mono)}
+  .kpi.crit .v{color:var(--crit)} .kpi.crit{border-color:rgba(251,92,107,.28)}
+  .kpi.crit::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--crit)}
+  .kpi.obs .v{color:var(--high)}
+  .kpi .trend{position:absolute;right:14px;top:16px;font-size:11px;font-family:var(--mono);
+    color:var(--low);background:var(--low-dim);padding:2px 7px;border-radius:6px}
+  .kpi .trend.up{color:var(--crit);background:var(--crit-dim)}
+
+  /* ---- grid panels ---- */
+  .cols{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;align-items:start}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
+  .card h3{font-size:13px;font-weight:600;letter-spacing:.02em;display:flex;align-items:center;gap:8px;
+    color:var(--ink);margin-bottom:4px}
+  .card .hint{font-size:11.5px;color:var(--ink-3);margin-bottom:16px;font-family:var(--mono)}
+
+  /* severity stacked bar */
+  .sevbar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;margin:6px 0 16px}
+  .sevbar span{display:block}
+  .seg-crit{background:var(--crit)} .seg-high{background:var(--high)}
+  .seg-med{background:var(--med)} .seg-low{background:var(--low)}
+  .sevlegend{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+  .sevlegend .row{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .swatch{width:10px;height:10px;border-radius:3px;flex:none}
+  .sevlegend .row .n{margin-left:auto;font-family:var(--disp);font-weight:700;font-variant-numeric:tabular-nums}
+  .sevlegend .row .lbl{color:var(--ink-2)}
+
+  /* top risky bars */
+  .rank{display:flex;flex-direction:column;gap:13px}
+  .rrow{display:grid;grid-template-columns:150px 1fr 44px;align-items:center;gap:12px;cursor:pointer}
+  .rrow .who{font-family:var(--mono);font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rrow .who small{color:var(--ink-3)}
+  .track{height:9px;background:var(--panel-3);border-radius:5px;overflow:hidden;position:relative}
+  .fill{height:100%;border-radius:5px;position:relative}
+  .rrow .sc{font-family:var(--disp);font-weight:700;font-size:14px;text-align:right;font-variant-numeric:tabular-nums}
+  .tag-sys{font-size:9.5px;font-family:var(--mono);color:var(--ink-3);border:1px solid var(--border-strong);
+    padding:1px 5px;border-radius:5px;margin-left:6px;vertical-align:middle}
+
+  /* ---- alerts list ---- */
+  .alerts{display:flex;flex-direction:column;gap:11px}
+  .alert{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:13px 15px 13px 13px;
+    cursor:pointer;position:relative;transition:border-color .15s,background .15s}
+  .alert:hover{border-color:var(--border-strong);background:var(--panel-2)}
+  .alert.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-dim),var(--shadow)}
+  .stripe{width:4px;align-self:stretch;border-radius:3px}
+  .s-crit{background:var(--crit)} .s-high{background:var(--high)} .s-med{background:var(--med)} .s-low{background:var(--low)}
+  .alert .body .id{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);letter-spacing:.03em}
+  .alert .body .ttl{font-size:14px;font-weight:600;margin:2px 0 7px}
+  .chips{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .chip{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:6px;background:var(--panel-3);
+    color:var(--ink-2);border:1px solid var(--border)}
+  .chip.tgt{color:#ffd9dd;border-color:rgba(251,92,107,.3);background:var(--crit-dim)}
+  .arrow{color:var(--ink-3);font-family:var(--mono)}
+  .alert .right{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  .risk{font-family:var(--disp);font-weight:900;font-size:22px;line-height:1;font-variant-numeric:tabular-nums}
+  .risk small{font-size:11px;color:var(--ink-3);font-weight:600}
+  .status{font-family:var(--mono);font-size:10px;letter-spacing:.06em;padding:3px 9px;border-radius:999px;text-transform:uppercase}
+  .st-possible{color:var(--ink-2);background:var(--panel-3);border:1px solid var(--border-strong)}
+  .st-reachable{color:var(--high);background:var(--high-dim);border:1px solid rgba(245,165,36,.4)}
+  .st-observed{color:var(--crit);background:var(--crit-dim);border:1px solid rgba(251,92,107,.45);
+    animation:pulse 2.2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(251,92,107,.0)}50%{box-shadow:0 0 0 4px rgba(251,92,107,.16)}}
+  @media (prefers-reduced-motion:reduce){.st-observed{animation:none}}
+
+  /* ---- path detail ---- */
+  .detail{margin-top:16px}
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;padding:6px 0 2px}
+  .hopnode{background:var(--panel-3);border:1px solid var(--border-strong);border-radius:10px;padding:9px 13px;
+    display:flex;flex-direction:column;gap:2px;min-width:0}
+  .hopnode .k{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .hopnode .v{font-family:var(--mono);font-size:12.5px;color:var(--ink);white-space:nowrap}
+  .hopnode.src{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-dim)}
+  .hopnode.sink{border-color:var(--crit);box-shadow:inset 0 0 0 1px var(--crit-dim)}
+  .hopnode.sink .v{color:#ffd9dd}
+  .hopedge{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;min-width:120px}
+  .hopedge .verb{font-family:var(--mono);font-size:10px;color:var(--crit);background:var(--crit-dim);
+    border:1px solid rgba(251,92,107,.3);padding:2px 8px;border-radius:6px;white-space:nowrap;margin-bottom:5px}
+  .hopedge .line{width:100%;height:2px;background:linear-gradient(90deg,var(--accent),var(--crit));position:relative}
+  .hopedge .line::after{content:"▶";position:absolute;right:-2px;top:-7px;color:var(--crit);font-size:10px}
+
+  .detgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px}
+  .block .bh{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:9px}
+  .ev{display:flex;flex-direction:column;gap:7px}
+  .ev .item{font-family:var(--mono);font-size:12px;color:var(--ink-2);display:flex;gap:8px}
+  .ev .item b{color:var(--ink);font-weight:500}
+  .mitre{display:flex;gap:8px;flex-wrap:wrap}
+  .mtag{font-family:var(--mono);font-size:11px;padding:4px 9px;border-radius:7px;background:var(--panel-3);
+    border:1px solid var(--border-strong);color:var(--accent-2)}
+  .fix{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+  .fix li{font-size:12.5px;color:var(--ink-2);display:flex;gap:9px;align-items:flex-start}
+  .fix li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--low);margin-top:6px;flex:none}
+
+  /* confidence stepper */
+  .stepper{display:flex;align-items:center;gap:0;margin-top:14px}
+  .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+  .step .b{width:100%;height:4px;background:var(--panel-3);border-radius:3px}
+  .step.on .b{background:var(--accent)} .step.now .b{background:var(--crit)}
+  .step .t{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--ink-3);text-transform:uppercase}
+  .step.on .t{color:var(--ink-2)} .step.now .t{color:var(--crit);font-weight:600}
+
+  /* ---- graph view ---- */
+  .graphwrap{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+  #cy{height:520px;background-color:#0C121C;
+    background-image:radial-gradient(90% 70% at 50% 0%,rgba(76,141,255,.06),transparent 70%);
+    border:1px solid var(--border);border-radius:14px}
+  .legend{display:flex;flex-wrap:wrap;gap:10px 16px;margin-top:12px;padding:12px 14px;
+    background:var(--panel);border:1px solid var(--border);border-radius:10px}
+  .legend .li{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-2)}
+  .legend .li .d{width:11px;height:11px;border-radius:50%;flex:none}
+  .inspector{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:17px;min-height:520px}
+  .inspector .empty{color:var(--ink-3);font-size:12.5px;font-family:var(--mono);text-align:center;margin-top:40px;line-height:1.7}
+  .insp-h{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .insp-h .ic{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;
+    font-family:var(--disp);font-weight:700;color:#04101f}
+  .insp-h .nm{font-family:var(--mono);font-size:13px;color:var(--ink);word-break:break-all}
+  .insp-h .ty{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em}
+  .krow{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--border);font-size:12.5px}
+  .krow .k{color:var(--ink-3)} .krow .v{font-family:var(--mono);color:var(--ink)}
+  .perm{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);background:var(--panel-3);
+    border:1px solid var(--border);border-radius:6px;padding:5px 9px;margin:5px 5px 0 0;display:inline-block}
+  .perm.danger{color:#ffd9dd;border-color:rgba(251,92,107,.35);background:var(--crit-dim)}
+
+  /* ---- audit table ---- */
+  .tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:14px;background:var(--panel)}
+  table{width:100%;border-collapse:collapse;min-width:760px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);
+    font-weight:600;padding:12px 14px;border-bottom:1px solid var(--border)}
+  td{padding:11px 14px;font-size:12.5px;border-bottom:1px solid var(--border);color:var(--ink-2);
+    font-family:var(--mono);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  tr.match{background:var(--crit-dim)}
+  tr.match td{color:var(--ink)}
+  .verb{color:var(--accent-2)} .verb.w{color:var(--high)}
+  .corr{font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:6px}
+  .corr.hit{color:var(--crit);background:var(--crit-dim);border:1px solid rgba(251,92,107,.4)}
+  .corr.no{color:var(--ink-3)}
+  .banner{display:flex;gap:12px;align-items:center;background:linear-gradient(90deg,var(--crit-dim),transparent);
+    border:1px solid rgba(251,92,107,.3);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+  .banner .bi{width:34px;height:34px;border-radius:9px;background:var(--crit-dim);display:grid;place-items:center;flex:none}
+  .banner b{color:#ffd9dd}
+  .banner .x{font-size:12.5px;color:var(--ink-2)}
+  .banner .x b{font-family:var(--mono);font-weight:500}
+
+  .note{font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:18px;
+    padding-top:14px;border-top:1px solid var(--border)}
+
+  /* tooltip */
+  #tip{position:fixed;pointer-events:none;z-index:99;background:#05070B;border:1px solid var(--border-strong);
+    border-radius:8px;padding:8px 11px;font-size:12px;color:var(--ink);box-shadow:var(--shadow);opacity:0;
+    transition:opacity .12s;max-width:240px}
+  #tip .tt{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-top:3px}
+
+  @media (max-width:960px){
+    .shell{grid-template-columns:1fr}
+    .rail{position:fixed;left:-260px;transition:left .2s;z-index:50}
+    .rail.open{left:0}
+    .menu-btn{display:grid!important}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .cols,.detgrid,.graphwrap{grid-template-columns:1fr}
+    #cy{height:400px}
+  }
+  .menu-btn{display:none;place-items:center;width:36px;height:36px;border-radius:9px;border:1px solid var(--border);
+    background:var(--panel);cursor:pointer}
+  .menu-btn svg{width:18px;height:18px;color:var(--ink)}
+</style>
+
+<div class="shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="rail" id="rail">
+    <div class="brand">
+      <div class="mark"></div>
+      <div><b>KSA Detector</b><span>escalation console</span></div>
+    </div>
+    <div class="nav-label">Analysis</div>
+    <div class="nav active" data-view="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+      Overview</div>
+    <div class="nav" data-view="paths">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="12" r="2.4"/><circle cx="5" cy="18" r="2.4"/><path d="M7.3 7 16.7 11M7.3 17 16.7 13"/></svg>
+      Escalation Paths <span class="count">9</span></div>
+    <div class="nav" data-view="graph">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><circle cx="12" cy="13" r="2.2"/><path d="M12 7.2v3.6M10.3 14.4 6.4 16.6M13.7 14.4l3.9 2.2"/></svg>
+      Relationship Graph</div>
+    <div class="nav" data-view="audit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 5v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5"/><path d="M8 10h8M8 14h5"/></svg>
+      Audit Correlation <span class="count">1</span></div>
+    <div class="nav-label">Cluster</div>
+    <div class="nav" data-view="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3a15 15 0 0 0 0 18M12 3a15 15 0 0 1 0 18M3 12h18"/></svg>
+      Service Accounts <span class="count">45</span></div>
+    <div class="nav" data-view="overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z"/><path d="M9.5 12l1.8 1.8 3.4-3.6"/></svg>
+      Mitigations</div>
+    <div class="foot">kind-ksa-lab<br>v0.4 · phase 11</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" aria-label="Toggle menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="ctx"><span class="dot"></span><b>kind-ksa-lab</b></div>
+      <span class="pill-mode">● PASSIVE OBSERVER</span>
+      <div class="spacer"></div>
+      <div class="meta">scan 2026-09-30 15:42 UTC<br>227 nodes · 642 edges · audit ON</div>
+      <button class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5"/></svg>Re-scan</button>
+    </header>
+
+    <!-- ---------- OVERVIEW ---------- -->
+    <section class="view active" id="v-overview">
+      <div class="view-h"><h1>Cluster escalation posture</h1><span class="sub">// kind-ksa-lab</span></div>
+      <p class="lead">Every ServiceAccount, RBAC binding, workload, secret and token modeled as one directed graph, then walked for multi-hop paths to <span class="mono" style="color:var(--crit)">cluster-admin</span>. Findings a per-permission check (<span class="mono">kubectl auth can-i</span>) cannot see.</p>
+
+      <div class="kpis">
+        <div class="kpi">
+          <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.5 3.1-6 7-6s7 2.5 7 6"/></svg>Service Accounts</div>
+          <div class="v num">45</div><div class="d">across 7 namespaces</div>
+        </div>
+        <div class="kpi">
+          <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="5" cy="18" r="2"/><path d="M7 7l10 4M7 17l10-4"/></svg>Escalation Paths</div>
+          <div class="v num">9</div><div class="d">3 non-system · 6 system controllers</div>
+        </div>
+        <div class="kpi crit">
+          <div class="trend up">▲ 3</div>
+          <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 2 20h20z"/><path d="M12 9v5M12 17h.01"/></svg>Critical</div>
+          <div class="v num">3</div><div class="d">reach cluster-admin ≤ 2 hops</div>
+        </div>
+        <div class="kpi obs">
+          <div class="cap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/></svg>Observed in audit</div>
+          <div class="v num">1</div><div class="d">path confirmed exercised</div>
+        </div>
+      </div>
+
+      <div class="cols">
+        <div class="card">
+          <h3>Top ServiceAccounts by risk</h3>
+          <div class="hint">// contextual score 0–100 · click to inspect path</div>
+          <div class="rank" id="rank"></div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card">
+            <h3>Severity distribution</h3>
+            <div class="hint">// 9 escalation paths</div>
+            <div class="sevbar">
+              <span class="seg-crit" style="flex:3"></span>
+              <span class="seg-high" style="flex:4"></span>
+              <span class="seg-med" style="flex:2"></span>
+            </div>
+            <div class="sevlegend">
+              <div class="row"><span class="swatch seg-crit"></span><span class="lbl">Critical</span><span class="n">3</span></div>
+              <div class="row"><span class="swatch seg-high"></span><span class="lbl">High</span><span class="n">4</span></div>
+              <div class="row"><span class="swatch seg-med"></span><span class="lbl">Medium</span><span class="n">2</span></div>
+              <div class="row"><span class="swatch seg-low"></span><span class="lbl">Low</span><span class="n">0</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Detection primitives seen</h3>
+            <div class="hint">// escalation edge types in graph</div>
+            <div>
+              <span class="perm danger">CREATE_POD_AS ×6</span>
+              <span class="perm danger">REQUEST_TOKEN ×2</span>
+              <span class="perm danger">IMPERSONATE ×1</span>
+              <span class="perm">WORKLOAD_HIJACK ×3</span>
+              <span class="perm">READ_SECRET_CRED ×2</span>
+              <span class="perm danger">CAN_ESCALATE ×1</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">Mockup — figures illustrate the real kind-ksa-lab scan output (Scenario 1 detected live). Layout under review before the React build.</div>
+    </section>
+
+    <!-- ---------- PATHS ---------- -->
+    <section class="view" id="v-paths">
+      <div class="view-h"><h1>Escalation paths</h1><span class="sub">// 9 found · sorted by risk</span></div>
+      <p class="lead">Each finding is an explainable chain from a source identity to a privilege sink. Select one to see its hops, the RBAC evidence that authorizes each step, MITRE mapping, and remediation.</p>
+
+      <div class="cols" style="grid-template-columns:1fr 1fr">
+        <div class="alerts" id="alerts"></div>
+        <div class="card detail" id="detail"></div>
+      </div>
+    </section>
+
+    <!-- ---------- GRAPH ---------- -->
+    <section class="view" id="v-graph">
+      <div class="view-h"><h1>Relationship graph</h1><span class="sub">// escalation actions + RBAC wiring</span></div>
+      <p class="lead">Red edges are attacker actions (one hop each); dashed edges show how the RBAC is wired. The critical path from <span class="mono">dev/web-sa</span> is highlighted. Click any node to inspect it.</p>
+      <div class="graphwrap">
+        <div>
+          <div id="cy"></div>
+          <div class="legend">
+            <div class="li"><span class="d" style="background:var(--n-sa)"></span>ServiceAccount</div>
+            <div class="li"><span class="d" style="background:var(--n-role)"></span>Role</div>
+            <div class="li"><span class="d" style="background:var(--n-crole)"></span>ClusterRole</div>
+            <div class="li"><span class="d" style="background:var(--n-work)"></span>Workload</div>
+            <div class="li"><span class="d" style="background:var(--n-secret)"></span>Secret</div>
+            <div class="li"><span class="d" style="background:var(--n-sink)"></span>Sink (cluster-admin)</div>
+          </div>
+        </div>
+        <div class="inspector" id="inspector">
+          <div class="empty">◎<br><br>Click a node in the graph<br>to inspect its permissions,<br>bindings and risk.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- AUDIT ---------- -->
+    <section class="view" id="v-audit">
+      <div class="view-h"><h1>Audit correlation</h1><span class="sub">// static path → runtime evidence</span></div>
+      <p class="lead">The API-server audit stream is matched against graph paths. When a real action matches a hop, the path is promoted <span class="mono">REACHABLE → OBSERVED</span> — the core differentiator versus static-only tooling.</p>
+
+      <div class="banner">
+        <div class="bi">⚠</div>
+        <div class="x"><b>KSA-PE-001 promoted to OBSERVED.</b><br>
+          <b>dev/web-sa</b> created pod <b>prod/exfil-x9</b> with <b>serviceAccountName: admin-sa</b> — matches hop 1 of the critical path.</div>
+      </div>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Time (UTC)</th><th>Subject</th><th>Verb</th><th>Resource</th><th>Namespace</th><th>Detail</th><th>Correlation</th></tr></thead>
+          <tbody>
+            <tr class="match">
+              <td>15:44:07</td><td>dev/web-sa</td><td class="verb w">create</td><td>pods</td><td>production</td>
+              <td>serviceAccountName=admin-sa</td><td><span class="corr hit">→ KSA-PE-001 OBSERVED</span></td>
+            </tr>
+            <tr><td>15:43:58</td><td>dev/web-sa</td><td class="verb">get</td><td>pods</td><td>production</td><td>list workloads</td><td><span class="corr no">recon</span></td></tr>
+            <tr><td>15:41:22</td><td>security/monitor-sa</td><td class="verb w">impersonate</td><td>serviceaccounts</td><td>production</td><td>as=admin-sa</td><td><span class="corr no">path KSA-PE-002</span></td></tr>
+            <tr><td>15:39:10</td><td>prod/backup-sa</td><td class="verb w">create</td><td>serviceaccounts/token</td><td>production</td><td>target=admin-sa</td><td><span class="corr no">path KSA-PE-004</span></td></tr>
+            <tr><td>15:37:44</td><td>dev/developer-sa</td><td class="verb">get</td><td>secrets</td><td>dev</td><td>db-creds</td><td><span class="corr no">path KSA-PE-005</span></td></tr>
+            <tr><td>15:36:02</td><td>system:kube-controller-manager</td><td class="verb">update</td><td>endpoints</td><td>kube-system</td><td>—</td><td><span class="corr no">benign</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">Audit policy captures pod-create request objects at Request level → we see the serviceAccountName that turns a theoretical hop into an observed one.</div>
+    </section>
+  </div>
+</div>
+
+<div id="tip"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js"></script>
+<script>
+/* ---------------- data (mirrors real kind-ksa-lab scan) ---------------- */
+const SEV = {critical:{c:'var(--crit)',cls:'s-crit'},high:{c:'var(--high)',cls:'s-high'},
+  medium:{c:'var(--med)',cls:'s-med'},low:{c:'var(--low)',cls:'s-low'}};
+
+const risky = [
+  {sa:'dev/web-sa',        risk:96, sev:'critical', paths:3, sys:false},
+  {sa:'security/monitor-sa',risk:93, sev:'critical', paths:1, sys:false},
+  {sa:'kube-system/clusterrole-aggregation-controller', risk:90, sev:'critical', paths:1, sys:true},
+  {sa:'prod/backup-sa',    risk:88, sev:'high', paths:1, sys:false},
+  {sa:'staging/deployment-sa', risk:84, sev:'high', paths:2, sys:false},
+  {sa:'dev/developer-sa',  risk:61, sev:'medium', paths:1, sys:false},
+];
+
+const alerts = [
+  {id:'KSA-PE-001', sev:'critical', risk:96, status:'observed', ttl:'ServiceAccount can escalate via cross-namespace workload creation',
+   src:'dev/web-sa', tgt:'cluster-admin', now:3,
+   hops:[
+     {who:'dev/web-sa', k:'source SA', verb:'CREATE_POD_AS @production'},
+     {who:'production/admin-sa', k:'via pod', verb:'IS_CLUSTER_ADMIN'},
+     {who:'cluster-admin', k:'sink', sink:true},
+   ],
+   ev:[['RoleBinding','rb:production/web-sa-can-create-prod-pods'],['Role','role:production/pod-creator (create pods)'],['ClusterRoleBinding','crb:admin-sa-cluster-admin']],
+   mitre:['T1078 Valid Accounts','T1610 Deploy Container','T1613 Container & Resource Discovery'],
+   fix:['Remove web-sa from the production pod-creator binding','Restrict allowed serviceAccountNames via admission policy (Kyverno/OPA)','Isolate production workload creation to a dedicated SA','Set automountServiceAccountToken: false on admin-sa where unused'],
+  },
+  {id:'KSA-PE-002', sev:'critical', risk:93, status:'reachable', ttl:'Impersonation of privileged ServiceAccount',
+   src:'security/monitor-sa', tgt:'cluster-admin', now:2,
+   hops:[{who:'security/monitor-sa',k:'source SA',verb:'IMPERSONATE @production'},{who:'production/admin-sa',k:'impersonated',verb:'IS_CLUSTER_ADMIN'},{who:'cluster-admin',k:'sink',sink:true}],
+   ev:[['ClusterRole','clusterrole:impersonator (impersonate serviceaccounts)'],['ClusterRoleBinding','crb:monitor-impersonate']],
+   mitre:['T1078 Valid Accounts','T1548 Abuse Elevation Control'],
+   fix:['Remove the impersonate verb from monitor-sa','Constrain impersonation to specific resourceNames','Prefer scoped read-only monitoring roles'],
+  },
+  {id:'KSA-PE-004', sev:'high', risk:88, status:'reachable', ttl:'Token minting for higher-privileged ServiceAccount',
+   src:'prod/backup-sa', tgt:'production/admin-sa', now:2,
+   hops:[{who:'production/backup-sa',k:'source SA',verb:'REQUEST_TOKEN @production'},{who:'production/admin-sa',k:'minted token',verb:'IS_CLUSTER_ADMIN'},{who:'cluster-admin',k:'sink',sink:true}],
+   ev:[['Role','role:production/token-minter (serviceaccounts/token)'],['RoleBinding','rb:production/backup-token']],
+   mitre:['T1528 Steal Application Access Token','T1550.001 App Access Token'],
+   fix:['Scope serviceaccounts/token to specific resourceNames','Remove token-minter role from backup-sa','Use short-lived, audience-bound tokens'],
+  },
+  {id:'KSA-PE-003', sev:'high', risk:84, status:'possible', ttl:'Workload hijack via deployment patch',
+   src:'staging/deployment-sa', tgt:'production/admin-sa', now:1,
+   hops:[{who:'staging/deployment-sa',k:'source SA',verb:'WORKLOAD_HIJACK @production'},{who:'production/admin-sa',k:'swapped SA',verb:'IS_CLUSTER_ADMIN'},{who:'cluster-admin',k:'sink',sink:true}],
+   ev:[['ClusterRole','clusterrole:deployer (patch deployments)'],['RoleBinding','rb:production/deployer']],
+   mitre:['T1610 Deploy Container','T1078 Valid Accounts'],
+   fix:['Restrict patch on deployments across namespaces','Pin serviceAccountName via admission policy','Separate staging and production RBAC'],
+  },
+  {id:'KSA-PE-005', sev:'medium', risk:61, status:'possible', ttl:'Secret read exposes ServiceAccount token',
+   src:'dev/developer-sa', tgt:'dev/ci-sa', now:1,
+   hops:[{who:'dev/developer-sa',k:'source SA',verb:'READ_SECRET_CRED @dev'},{who:'dev/ci-sa',k:'token in secret',verb:'has deploy rights'}],
+   ev:[['Role','role:dev/secret-reader (get,list secrets)'],['Secret','secret:dev/ci-sa-token']],
+   mitre:['T1552.007 Unsecured Credentials: Container API'],
+   fix:['Scope secret reads with resourceNames','Move to external secret store','Disable legacy SA token secrets'],
+  },
+];
+
+/* ---------------- render: rank bars ---------------- */
+const rankEl = document.getElementById('rank');
+risky.forEach(r=>{
+  const [ns,nm]=r.sa.split('/');
+  const el=document.createElement('div'); el.className='rrow';
+  el.innerHTML=`<div class="who" title="${r.sa}"><small>${ns}/</small>${nm}${r.sys?'<span class="tag-sys">system</span>':''}</div>
+    <div class="track"><div class="fill" style="width:${r.risk}%;background:${SEV[r.sev].c}"></div></div>
+    <div class="sc" style="color:${SEV[r.sev].c}">${r.risk}</div>`;
+  el.addEventListener('mousemove',e=>tip(e,`${r.sa}`,`${r.paths} path(s) · ${r.sev.toUpperCase()}${r.sys?' · known system controller':''}`));
+  el.addEventListener('mouseleave',hideTip);
+  el.addEventListener('click',()=>{go('paths');selectAlert(alerts.find(a=>a.src===r.sa)||alerts[0]);});
+  rankEl.appendChild(el);
+});
+
+/* ---------------- render: alerts + detail ---------------- */
+const alertsEl=document.getElementById('alerts');
+const stMap={possible:['st-possible','POSSIBLE'],reachable:['st-reachable','REACHABLE'],observed:['st-observed','OBSERVED']};
+alerts.forEach(a=>{
+  const el=document.createElement('div'); el.className='alert'; el.dataset.id=a.id;
+  el.innerHTML=`<div class="stripe ${SEV[a.sev].cls}"></div>
+    <div class="body"><div class="id">${a.id}</div><div class="ttl">${a.ttl}</div>
+      <div class="chips"><span class="chip">${a.src}</span><span class="arrow">→</span><span class="chip tgt">${a.tgt}</span></div></div>
+    <div class="right"><div class="risk" style="color:${SEV[a.sev].c}">${a.risk}<small>/100</small></div>
+      <span class="status ${stMap[a.status][0]}">${stMap[a.status][1]}</span></div>`;
+  el.addEventListener('click',()=>selectAlert(a));
+  alertsEl.appendChild(el);
+});
+
+const STEPS=['possible','likely','reachable','observed','confirmed'];
+function selectAlert(a){
+  document.querySelectorAll('.alert').forEach(x=>x.classList.toggle('sel',x.dataset.id===a.id));
+  const d=document.getElementById('detail');
+  const flow=a.hops.map((h,i)=>{
+    const node=`<div class="hopnode ${i===0?'src':''} ${h.sink?'sink':''}"><span class="k">${h.k}</span><span class="v">${h.who}</span></div>`;
+    const edge=(i<a.hops.length-1 && a.hops[i].verb)?`<div class="hopedge"><span class="verb">${a.hops[i].verb}</span><span class="line"></span></div>`:'';
+    return node+edge;
+  }).join('');
+  const nowIdx=STEPS.indexOf(a.status);
+  const stepper=STEPS.map((s,i)=>`<div class="step ${i<nowIdx?'on':''} ${i===nowIdx?'now':''}"><div class="b"></div><div class="t">${s}</div></div>`).join('');
+  d.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <h3>${a.id} · ${a.ttl}</h3><span class="risk" style="color:${SEV[a.sev].c}">${a.risk}<small>/100</small></span></div>
+    <div class="hint">// ${a.src} → ${a.tgt} · ${a.hops.length-1} hop(s)</div>
+    <div class="flow">${flow}</div>
+    <div class="block" style="margin-top:18px"><div class="bh">Confidence lifecycle</div><div class="stepper">${stepper}</div></div>
+    <div class="detgrid">
+      <div class="block"><div class="bh">Evidence</div><div class="ev">${a.ev.map(e=>`<div class="item"><b>${e[0]}</b> ${e[1]}</div>`).join('')}</div></div>
+      <div class="block"><div class="bh">MITRE ATT&CK</div><div class="mitre">${a.mitre.map(m=>`<span class="mtag">${m}</span>`).join('')}</div></div>
+    </div>
+    <div class="block" style="margin-top:18px"><div class="bh">Recommended remediation</div>
+      <ul class="fix">${a.fix.map(f=>`<li>${f}</li>`).join('')}</ul></div>`;
+}
+selectAlert(alerts[0]);
+
+/* ---------------- nav ---------------- */
+function go(v){
+  document.querySelectorAll('.nav[data-view]').forEach(n=>n.classList.toggle('active',n.dataset.view===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id==='v-'+v));
+  document.getElementById('rail').classList.remove('open');
+  if(v==='graph') setTimeout(initGraph,30);
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('.nav[data-view]').forEach(n=>n.addEventListener('click',()=>go(n.dataset.view)));
+document.getElementById('menuBtn').addEventListener('click',()=>document.getElementById('rail').classList.toggle('open'));
+
+/* ---------------- tooltip ---------------- */
+const tipEl=document.getElementById('tip');
+function tip(e,a,b){tipEl.innerHTML=`${a}<div class="tt">${b}</div>`;tipEl.style.opacity=1;
+  tipEl.style.left=Math.min(e.clientX+14,innerWidth-250)+'px';tipEl.style.top=(e.clientY+14)+'px';}
+function hideTip(){tipEl.style.opacity=0;}
+
+/* ---------------- cytoscape graph ---------------- */
+let cyDone=false;
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+const nodeMeta={
+  'dev/web-sa':{type:'ServiceAccount',ns:'dev',risk:96,auto:true,perms:[['create pods',1],['get pods',0],['list pods',0]],binds:['rb:production/web-sa-can-create-prod-pods']},
+  'production/admin-sa':{type:'ServiceAccount',ns:'production',risk:99,auto:true,perms:[['* * (cluster-admin)',1]],binds:['crb:admin-sa-cluster-admin']},
+  'staging/deployment-sa':{type:'ServiceAccount',ns:'staging',risk:84,auto:true,perms:[['patch deployments',1],['get deployments',0]],binds:['rb:production/deployer']},
+  'prod/backup-sa':{type:'ServiceAccount',ns:'production',risk:88,auto:true,perms:[['create serviceaccounts/token',1]],binds:['rb:production/backup-token']},
+  'dev/developer-sa':{type:'ServiceAccount',ns:'dev',risk:61,auto:true,perms:[['get secrets',1],['list secrets',1]],binds:['rb:dev/secret-reader']},
+  'pod-creator':{type:'Role',ns:'production',risk:0,perms:[['create pods',1]],binds:[]},
+  'dev/db-creds':{type:'Secret',ns:'dev',risk:0,perms:[],binds:[]},
+  'cluster-admin':{type:'Sink',ns:'—',risk:100,perms:[['*','1']],binds:[]},
+};
+const TYPECOL={ServiceAccount:'--n-sa',Role:'--n-role',ClusterRole:'--n-crole',Workload:'--n-work',Secret:'--n-secret',Sink:'--n-sink'};
+function initGraph(){
+  if(cyDone) return; cyDone=true;
+  const cy=cytoscape({
+    container:document.getElementById('cy'),
+    elements:[
+      {data:{id:'dev/web-sa',label:'web-sa\ndev',type:'ServiceAccount'},position:{x:70,y:250}},
+      {data:{id:'dev/developer-sa',label:'developer-sa\ndev',type:'ServiceAccount'},position:{x:70,y:90}},
+      {data:{id:'staging/deployment-sa',label:'deployment-sa\nstaging',type:'ServiceAccount'},position:{x:70,y:410}},
+      {data:{id:'prod/backup-sa',label:'backup-sa\nproduction',type:'ServiceAccount'},position:{x:300,y:410}},
+      {data:{id:'pod-creator',label:'pod-creator\nproduction',type:'Role'},position:{x:300,y:250}},
+      {data:{id:'dev/db-creds',label:'db-creds\ndev',type:'Secret'},position:{x:300,y:90}},
+      {data:{id:'production/admin-sa',label:'admin-sa\nproduction',type:'ServiceAccount'},position:{x:560,y:250}},
+      {data:{id:'cluster-admin',label:'cluster-admin',type:'Sink'},position:{x:800,y:250}},
+      // action edges
+      {data:{id:'e1',source:'dev/web-sa',target:'production/admin-sa',label:'CREATE_POD_AS',cls:'crit'}},
+      {data:{id:'e2',source:'production/admin-sa',target:'cluster-admin',label:'IS_CLUSTER_ADMIN',cls:'crit'}},
+      {data:{id:'e3',source:'staging/deployment-sa',target:'production/admin-sa',label:'WORKLOAD_HIJACK',cls:'high'}},
+      {data:{id:'e4',source:'prod/backup-sa',target:'production/admin-sa',label:'REQUEST_TOKEN',cls:'high'}},
+      {data:{id:'e5',source:'dev/developer-sa',target:'dev/db-creds',label:'READ_SECRET_CRED',cls:'med'}},
+      // structural
+      {data:{id:'s1',source:'dev/web-sa',target:'pod-creator',label:'granted',cls:'struct'}},
+    ],
+    style:[
+      {selector:'node',style:{
+        'label':'data(label)','text-wrap':'wrap','text-valign':'center','text-halign':'center',
+        'color':'#04101f','font-family':'IBM Plex Mono, monospace','font-size':'10px','font-weight':600,
+        'text-max-width':'90px','width':64,'height':64,'border-width':2,'border-color':'#0C121C',
+        'background-color':ele=>css(TYPECOL[ele.data('type')]||'--n-sa'),'text-outline-width':0,
+        'shadow-blur':16,'shadow-color':'#000','shadow-opacity':.4,'shadow-offset-y':4}},
+      {selector:'node[type="Sink"]',style:{'shape':'diamond','width':84,'height':84,'color':'#fff','font-size':'11px'}},
+      {selector:'node[type="Role"]',style:{'shape':'round-rectangle','width':78,'height':52,'color':'#052019'}},
+      {selector:'node[type="Secret"]',style:{'shape':'round-rectangle','width':74,'height':52,'color':'#1e1403'}},
+      {selector:'edge',style:{
+        'label':'data(label)','font-family':'IBM Plex Mono, monospace','font-size':'8.5px','color':'#93A1B8',
+        'text-background-color':'#0C121C','text-background-opacity':.9,'text-background-padding':'2px',
+        'curve-style':'bezier','target-arrow-shape':'triangle','width':2,
+        'line-color':'#31405A','target-arrow-color':'#31405A','arrow-scale':1.1}},
+      {selector:'edge[cls="crit"]',style:{'line-color':css('--crit'),'target-arrow-color':css('--crit'),'width':3.5,'color':'#ffd9dd','z-index':10}},
+      {selector:'edge[cls="high"]',style:{'line-color':css('--high'),'target-arrow-color':css('--high'),'width':2.5}},
+      {selector:'edge[cls="med"]',style:{'line-color':css('--med'),'target-arrow-color':css('--med'),'width':2}},
+      {selector:'edge[cls="struct"]',style:{'line-style':'dashed','line-color':'#31405A','target-arrow-color':'#31405A','width':1.5,'font-size':'8px'}},
+      {selector:'.faded',style:{'opacity':.22}},
+      {selector:'node:selected',style:{'border-color':'#fff','border-width':3}},
+    ],
+    layout:{name:'preset',fit:true,padding:36},
+    minZoom:.4,maxZoom:2.2,wheelSensitivity:.2,
+  });
+  cy.on('tap','node',e=>renderInspector(e.target.id()));
+  cy.on('tap',e=>{if(e.target===cy){cy.elements().removeClass('faded');clearInspector();}});
+  renderInspector('dev/web-sa'); cy.$('#dev/web-sa').select();
+  window.__cy=cy;
+}
+function renderInspector(id){
+  const m=nodeMeta[id]; if(!m) return;
+  const cy=window.__cy;
+  if(cy){cy.elements().addClass('faded');const n=cy.$id(id);const nb=n.closedNeighborhood();nb.removeClass('faded');}
+  const col=css(TYPECOL[m.type]||'--n-sa');
+  const insp=document.getElementById('inspector');
+  const perms=m.perms.length?m.perms.map(p=>`<span class="perm ${p[1]?'danger':''}">${p[0]}</span>`).join(''):'<span style="color:var(--ink-3);font-size:12px">no direct rules</span>';
+  const binds=m.binds.length?m.binds.map(b=>`<div class="perm" style="display:block;margin:5px 0 0">${b}</div>`).join(''):'<span style="color:var(--ink-3);font-size:12px">—</span>';
+  insp.innerHTML=`
+    <div class="insp-h"><div class="ic" style="background:${col}">${m.type[0]}</div>
+      <div><div class="nm">${id}</div><div class="ty">${m.type}</div></div></div>
+    <div class="krow"><span class="k">Namespace</span><span class="v">${m.ns}</span></div>
+    <div class="krow"><span class="k">Risk score</span><span class="v" style="color:${m.risk>=90?'var(--crit)':m.risk>=70?'var(--high)':'var(--ink)'}">${m.risk}/100</span></div>
+    ${m.auto!==undefined?`<div class="krow"><span class="k">automountToken</span><span class="v">${m.auto}</span></div>`:''}
+    <div style="margin-top:16px"><div class="bh" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Effective permissions</div>${perms}</div>
+    <div style="margin-top:16px"><div class="bh" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px">Bindings</div>${binds}</div>`;
+}
+function clearInspector(){document.getElementById('inspector').innerHTML=
+  '<div class="empty">◎<br><br>Click a node in the graph<br>to inspect its permissions,<br>bindings and risk.</div>';}
+</script>

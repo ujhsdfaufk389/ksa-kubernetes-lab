@@ -1,0 +1,30 @@
+# SCENARIO 1 — FIXED. web-sa keeps the function it actually needs (create pods)
+# but only in its OWN namespace (dev), where no privileged SA exists. The
+# cross-namespace grant into production is removed (deleted by apply-secure.sh).
+#
+# NOTE: RBAC alone cannot restrict WHICH serviceAccountName a pod uses; to fully
+# pin it, pair this with an admission policy (see docs/mitigations.md). Removing
+# the production grant already breaks the escalation path.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-creator-dev
+  namespace: dev
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: web-sa-can-create-dev-pods
+  namespace: dev
+subjects:
+  - kind: ServiceAccount
+    name: web-sa
+    namespace: dev
+roleRef:
+  kind: Role
+  name: pod-creator-dev
+  apiGroup: rbac.authorization.k8s.io

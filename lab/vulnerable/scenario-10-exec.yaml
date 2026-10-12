@@ -1,0 +1,57 @@
+# SCENARIO 10 — Escalation via pods/exec into a privileged workload.
+#
+# production/admin-workload runs as admin-sa (cluster-admin). security/breakglass-sa
+# can exec into pods in production, inheriting admin-sa's token.
+#   security/breakglass-sa --EXEC_INTO@production--> production/admin-sa --IS_CLUSTER_ADMIN--> cluster-admin
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: breakglass-sa
+  namespace: security
+---
+# a real workload running as the privileged admin-sa
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-workload
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: admin-workload}
+  template:
+    metadata:
+      labels: {app: admin-workload}
+    spec:
+      serviceAccountName: admin-sa
+      containers:
+        - name: c
+          image: busybox:1.36
+          command: ["sh","-c","sleep 100000"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-exec
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: breakglass-can-exec-prod
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: breakglass-sa
+    namespace: security
+roleRef:
+  kind: Role
+  name: pod-exec
+  apiGroup: rbac.authorization.k8s.io

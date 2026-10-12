@@ -1,0 +1,34 @@
+# SCENARIO 7 — Escalation via the RBAC 'escalate' verb.
+#
+# staging/escalator-sa holds 'escalate' on clusterroles. Normally the API server
+# blocks you from adding rules beyond what you already have; 'escalate' bypasses
+# that, letting escalator-sa add cluster-admin-equivalent rules to a role it can
+# modify.
+#   staging/escalator-sa --CAN_ESCALATE--> cluster-admin
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: escalator-sa
+  namespace: staging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: role-escalator
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "roles"]
+    verbs: ["escalate", "update", "patch", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: escalator-sa-can-escalate
+subjects:
+  - kind: ServiceAccount
+    name: escalator-sa
+    namespace: staging
+roleRef:
+  kind: ClusterRole
+  name: role-escalator
+  apiGroup: rbac.authorization.k8s.io

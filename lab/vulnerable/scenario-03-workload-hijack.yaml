@@ -1,0 +1,31 @@
+# SCENARIO 3 — Privilege escalation via workload hijack (patch deployment).
+#
+# VULNERABILITY: staging/deployment-sa can patch Deployments in production.
+# It can edit a production Deployment's pod template to set
+# serviceAccountName: admin-sa, and the next rollout runs as cluster-admin.
+#
+# EXPECTED DETECTION:
+#   staging/deployment-sa --WORKLOAD_HIJACK@production--> production/admin-sa
+#                         --IS_CLUSTER_ADMIN--> cluster-admin   [HIGH: needs rollout]
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: deployment-patcher
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-sa-can-patch-prod
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: deployment-sa
+    namespace: staging
+roleRef:
+  kind: ClusterRole
+  name: deployment-patcher
+  apiGroup: rbac.authorization.k8s.io

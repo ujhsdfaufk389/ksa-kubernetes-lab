@@ -1,0 +1,194 @@
+# Labeled evaluation dataset (offline, deterministic).
+# Positives = SAs that can actually reach cluster-admin.
+# Negatives = benign SAs, including "scary but harmless" ones that a naive
+#             per-verb detector over-flags (create pods in own ns; read secrets
+#             where no privileged token exists).
+# Excluded  = SAs that are already cluster-admin (not escalation *sources*).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: cluster-admin}
+rules: [{apiGroups: ["*"], resources: ["*"], verbs: ["*"]}]
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: dev}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: production}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: sandbox}
+---
+# ---- default SAs (benign negatives) ----
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: default, namespace: dev}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: default, namespace: production}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: default, namespace: sandbox}
+---
+# ---- already cluster-admin (excluded) ----
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: admin-sa, namespace: production}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: superadmin, namespace: dev}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: admin-binding}
+subjects: [{kind: ServiceAccount, name: admin-sa, namespace: production}]
+roleRef: {kind: ClusterRole, name: cluster-admin, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: superadmin-binding}
+subjects: [{kind: ServiceAccount, name: superadmin, namespace: dev}]
+roleRef: {kind: ClusterRole, name: cluster-admin, apiGroup: rbac.authorization.k8s.io}
+---
+# ==== POSITIVES ====
+# P1 create-pod-as
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: attacker-sa, namespace: dev}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: pc, namespace: production}
+rules: [{apiGroups: [""], resources: ["pods"], verbs: ["create"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: attacker-pc, namespace: production}
+subjects: [{kind: ServiceAccount, name: attacker-sa, namespace: dev}]
+roleRef: {kind: Role, name: pc, apiGroup: rbac.authorization.k8s.io}
+---
+# P2 impersonate
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: imp-sa, namespace: dev}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: impersonator}
+rules: [{apiGroups: [""], resources: ["serviceaccounts"], verbs: ["impersonate"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: imp-binding}
+subjects: [{kind: ServiceAccount, name: imp-sa, namespace: dev}]
+roleRef: {kind: ClusterRole, name: impersonator, apiGroup: rbac.authorization.k8s.io}
+---
+# P3 bind
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: bind-sa, namespace: dev}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: binder}
+rules: [{apiGroups: ["rbac.authorization.k8s.io"], resources: ["clusterroles"], verbs: ["bind"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: bind-binding}
+subjects: [{kind: ServiceAccount, name: bind-sa, namespace: dev}]
+roleRef: {kind: ClusterRole, name: binder, apiGroup: rbac.authorization.k8s.io}
+---
+# P4 read-secret-cred (admin token secret exists in production)
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: sec-sa, namespace: dev}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-token
+  namespace: production
+  annotations: {kubernetes.io/service-account.name: admin-sa}
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: sr, namespace: production}
+rules: [{apiGroups: [""], resources: ["secrets"], verbs: ["get", "list"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: sec-sr, namespace: production}
+subjects: [{kind: ServiceAccount, name: sec-sa, namespace: dev}]
+roleRef: {kind: Role, name: sr, apiGroup: rbac.authorization.k8s.io}
+---
+# P5 token-request
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: tok-sa, namespace: production}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: tm, namespace: production}
+rules: [{apiGroups: [""], resources: ["serviceaccounts/token"], verbs: ["create"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: tok-tm, namespace: production}
+subjects: [{kind: ServiceAccount, name: tok-sa, namespace: production}]
+roleRef: {kind: Role, name: tm, apiGroup: rbac.authorization.k8s.io}
+---
+# ==== NEGATIVES (benign) ====
+# N1 create pods only in its OWN namespace (no privileged SA there) -> naive over-flags
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: sandbox-sa, namespace: sandbox}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: pc2, namespace: sandbox}
+rules: [{apiGroups: [""], resources: ["pods"], verbs: ["create"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: sandbox-pc, namespace: sandbox}
+subjects: [{kind: ServiceAccount, name: sandbox-sa, namespace: sandbox}]
+roleRef: {kind: Role, name: pc2, apiGroup: rbac.authorization.k8s.io}
+---
+# N2 read secrets in dev where NO privileged token secret exists -> naive over-flags
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: reader-sa, namespace: dev}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: sr2, namespace: dev}
+rules: [{apiGroups: [""], resources: ["secrets"], verbs: ["get", "list"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: reader-sr, namespace: dev}
+subjects: [{kind: ServiceAccount, name: reader-sa, namespace: dev}]
+roleRef: {kind: Role, name: sr2, apiGroup: rbac.authorization.k8s.io}
+---
+# N3 read-only (true negative for both)
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: ro-sa, namespace: dev}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: ro, namespace: dev}
+rules: [{apiGroups: [""], resources: ["pods"], verbs: ["get", "list", "watch"]}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: ro-binding, namespace: dev}
+subjects: [{kind: ServiceAccount, name: ro-sa, namespace: dev}]
+roleRef: {kind: Role, name: ro, apiGroup: rbac.authorization.k8s.io}

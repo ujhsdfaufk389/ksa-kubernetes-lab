@@ -1,0 +1,32 @@
+# SCENARIO 4 — Privilege escalation via TokenRequest.
+#
+# VULNERABILITY: production/backup-sa can create serviceaccounts/token in the
+# production namespace. It can mint a fresh, valid token for production/admin-sa
+# (cluster-admin) on demand.
+#
+# EXPECTED DETECTION:
+#   production/backup-sa --REQUEST_TOKEN@production--> production/admin-sa
+#                        --IS_CLUSTER_ADMIN--> cluster-admin   [HIGH]
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: token-minter
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-sa-can-mint-tokens
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: backup-sa
+    namespace: production
+roleRef:
+  kind: Role
+  name: token-minter
+  apiGroup: rbac.authorization.k8s.io

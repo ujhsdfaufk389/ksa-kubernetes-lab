@@ -1,0 +1,17 @@
+# --- KSA Detector core (Phase 3-8) ---
+kubernetes==31.0.0        # official client-python (read-only collection)
+networkx==3.4.2           # graph core (nodes/edges, multi-hop traversal)
+pydantic==2.10.4          # typed, validated models for every K8s object (cp313 wheels)
+PyYAML==6.0.2             # offline manifest parsing + rules.yaml
+rich==13.9.4              # pretty CLI output / tables
+typer==0.15.1             # CLI framework (ksa-detector ...)
+click==8.1.8              # pin: typer 0.15 is incompatible with click>=8.2
+
+# --- API + reports (Phase 11) ---
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+jinja2==3.1.4             # HTML report templates
+
+# --- tests + benchmarks (Phase 30-31) ---
+pytest==8.3.4
+pytest-cov==6.0.0

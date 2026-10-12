@@ -1,0 +1,34 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# node / dashboard
+dashboard/node_modules/
+dashboard/dist/
+
+# generated data & reports (keep the dirs, ignore contents)
+reports/*
+!reports/.gitkeep
+cluster/audit/logs/*
+!cluster/audit/logs/.gitkeep
+
+# local secrets / kubeconfigs — NEVER commit
+*.kubeconfig
+kubeconfig*
+*.token
+
+# os
+.DS_Store
+
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.log

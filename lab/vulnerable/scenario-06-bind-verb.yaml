@@ -1,0 +1,34 @@
+# SCENARIO 6 — Escalation via the RBAC 'bind' verb.
+#
+# dev/binder-sa holds the 'bind' verb on clusterroles/clusterrolebindings. The
+# API server's escalation-prevention check does NOT stop a subject with 'bind'
+# from creating a binding to a role it doesn't otherwise hold — so binder-sa can
+# grant itself (or any SA) cluster-admin.
+#   dev/binder-sa --CAN_BIND--> cluster-admin
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: binder-sa
+  namespace: dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rbac-binder
+rules:
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles", "clusterrolebindings", "rolebindings"]
+    verbs: ["bind", "create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: binder-sa-can-bind
+subjects:
+  - kind: ServiceAccount
+    name: binder-sa
+    namespace: dev
+roleRef:
+  kind: ClusterRole
+  name: rbac-binder
+  apiGroup: rbac.authorization.k8s.io

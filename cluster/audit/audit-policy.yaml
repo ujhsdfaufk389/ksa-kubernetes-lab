@@ -1,0 +1,93 @@
+# Kubernetes API-server audit policy for the KSA privilege-escalation detector.
+#
+# Goal: capture exactly the events our runtime correlator needs to promote a
+# graph path from POSSIBLE -> OBSERVED, while keeping log volume sane.
+#
+# Levels: None < Metadata < Request < RequestResponse
+#   - Request level is needed where we must read the requestObject
+#     (e.g. the serviceAccountName a pod was created with).
+#
+# Docs: https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/
+apiVersion: audit.k8s.io/v1
+kind: Policy
+# Drop the noisy read-only "system:" chatter first.
+omitStages:
+  - RequestReceived
+rules:
+  # 1) Never log high-volume internal loops / health checks.
+  - level: None
+    users:
+      - system:kube-scheduler
+      - system:kube-controller-manager
+      - system:apiserver
+      - system:kube-proxy
+    verbs: ["get", "list", "watch"]
+  - level: None
+    userGroups: ["system:nodes"]
+    verbs: ["get", "list", "watch"]
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /readyz*
+      - /livez*
+      - /version
+      - /metrics
+      - /openapi/*
+
+  # 2) CROWN JEWELS — capture the full request object.
+  # Pod/workload creation: we need spec.serviceAccountName (the RUNS_AS edge).
+  - level: Request
+    verbs: ["create", "update", "patch"]
+    resources:
+      - group: ""            # core
+        resources: ["pods"]
+      - group: "apps"
+        resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+      - group: "batch"
+        resources: ["jobs", "cronjobs"]
+
+  # ServiceAccount token minting (serviceaccounts/token -> CAN_REQUEST_TOKEN).
+  - level: Request
+    verbs: ["create"]
+    resources:
+      - group: ""
+        resources: ["serviceaccounts/token"]
+      - group: "authentication.k8s.io"
+        resources: ["tokenrequests"]
+
+  # RBAC mutations: bind / escalate / self-granting (CAN_BIND, CAN_ESCALATE).
+  - level: RequestResponse
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "rbac.authorization.k8s.io"
+        resources:
+          - roles
+          - clusterroles
+          - rolebindings
+          - clusterrolebindings
+
+  # 3) Secret access — metadata only (we do NOT want secret values in logs),
+  #    but we DO want to know who read what (CAN_READ_SECRET exercised).
+  - level: Metadata
+    verbs: ["get", "list", "watch"]
+    resources:
+      - group: ""
+        resources: ["secrets"]
+
+  # 4) Exec / attach / portforward into pods (CAN_EXEC exercised).
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["pods/exec", "pods/attach", "pods/portforward"]
+
+  # 5) Impersonation is carried on the request as headers -> Metadata captures
+  #    impersonatedUser/Group in the audit event.
+  - level: Metadata
+    verbs: ["impersonate"]
+
+  # 6) Everything else that mutates state: metadata is enough for context.
+  - level: Metadata
+    verbs: ["create", "update", "patch", "delete"]
+
+  # 7) Default: catch-all metadata (low volume after the None rules above).
+  - level: Metadata

@@ -1,0 +1,65 @@
+# Default runtime configuration for the KSA detector.
+# Override with --config <file> or individual CLI flags.
+
+collection:
+  mode: live                 # live | directory
+  kubeconfig: ~/.kube/config
+  context: kind-ksa-lab
+  # In passive/observer mode against a real cluster (Part 27) we NEVER read
+  # secret values, only metadata. Keep this false outside the local lab.
+  read_secret_values: false
+  namespaces: []             # [] = all namespaces
+
+audit:
+  enabled: true
+  log_path: cluster/audit/logs/audit.log
+
+graph:
+  backend: networkx          # networkx | neo4j (Mode 2, optional)
+
+paths:
+  max_hops: 8                # cap multi-hop search depth
+  # Sink set: reaching any of these = full escalation.
+  sinks:
+    - cluster-admin
+    - escalate
+    - bind
+    - node-access
+
+risk:
+  # severity thresholds on the 0-100 score
+  thresholds:
+    critical: 90
+    high: 70
+    medium: 40
+    low: 1
+
+output:
+  dir: reports
+
+# --- Wave 2: policy (crown jewels, asset tiers, security invariants) ---------
+policy:
+  # Reaching any of these targets = full escalation / crown-jewel compromise.
+  crown_jewels:
+    - sink:cluster-admin
+    - sink:node-access
+  # Namespace risk tiers (0 = most sensitive). Paths that cross INTO a lower tier
+  # number (more sensitive) get a risk uplift.
+  asset_tiers:
+    kube-system: 0
+    production: 1
+    staging: 2
+    dev: 3
+    testing: 3
+  # Continuous security invariants — assertions re-verified on every scan.
+  # A violation is any escalation path from an identity matching the source
+  # selector to the forbidden target.
+  invariants:
+    - id: no-dev-to-cluster-admin
+      description: No ServiceAccount in 'dev' may reach cluster-admin
+      source_namespace: dev
+      forbid_reach: sink:cluster-admin
+    - id: no-nonsystem-node-access
+      description: No non-system ServiceAccount may reach node-level access
+      exclude_system: true
+      forbid_reach: sink:node-access

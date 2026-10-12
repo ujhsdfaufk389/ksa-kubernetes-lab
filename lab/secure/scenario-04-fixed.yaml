@@ -1,0 +1,29 @@
+# SCENARIO 4 — FIXED. backup-sa gets read-only access to the resources it backs
+# up, and NO serviceaccounts/token permission. It can no longer mint tokens for
+# privileged ServiceAccounts.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-reader
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-sa-readonly
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: backup-sa
+    namespace: production
+roleRef:
+  kind: Role
+  name: backup-reader
+  apiGroup: rbac.authorization.k8s.io

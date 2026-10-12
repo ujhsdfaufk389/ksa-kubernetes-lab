@@ -1,0 +1,46 @@
+# kind cluster for the KSA privilege-escalation detector.
+# 1 control-plane + 2 workers (your 32 GB / 20-thread laptop handles this easily).
+#
+# The control-plane node mounts our audit policy from the host and writes the
+# audit log back to the host at ./cluster/audit/logs/audit.log so the
+# Audit Collector (Phase 10) can tail it without kubectl access.
+#
+# NOTE: extraMounts.hostPath must be ABSOLUTE host paths. If you cloned this
+# repo elsewhere, run scripts/create-cluster.sh which rewrites them for you.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: ksa-lab
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          extraArgs:
+            audit-policy-file: /etc/kubernetes/audit/audit-policy.yaml
+            audit-log-path: /var/log/kubernetes/audit/audit.log
+            audit-log-maxage: "7"
+            audit-log-maxbackup: "3"
+            audit-log-maxsize: "100"
+          extraVolumes:
+            - name: audit-policy
+              hostPath: /etc/kubernetes/audit/audit-policy.yaml
+              mountPath: /etc/kubernetes/audit/audit-policy.yaml
+              readOnly: true
+              pathType: File
+            - name: audit-log
+              hostPath: /var/log/kubernetes/audit
+              mountPath: /var/log/kubernetes/audit
+              readOnly: false
+              pathType: DirectoryOrCreate
+    extraMounts:
+      # host audit policy -> into the control-plane node container
+      - hostPath: /home/syco/Desktop/Priviliage/cluster/audit/audit-policy.yaml
+        containerPath: /etc/kubernetes/audit/audit-policy.yaml
+        readOnly: true
+      # host log dir <- audit log written by the API server static pod
+      - hostPath: /home/syco/Desktop/Priviliage/cluster/audit/logs
+        containerPath: /var/log/kubernetes/audit
+        readOnly: false
+  - role: worker
+  - role: worker

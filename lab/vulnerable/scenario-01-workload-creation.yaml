@@ -1,0 +1,36 @@
+# SCENARIO 1 — Privilege escalation via cross-namespace workload creation.
+#
+# VULNERABILITY: dev/web-sa is granted "create pods" INSIDE the production
+# namespace. Because a pod author chooses spec.serviceAccountName, web-sa can
+# launch a pod in production that runs as production/admin-sa (cluster-admin),
+# then use that pod's token to control the whole cluster.
+#
+# EXPECTED DETECTION:
+#   dev/web-sa --CREATE_POD_AS@production--> production/admin-sa
+#              --IS_CLUSTER_ADMIN--> cluster-admin     [CRITICAL]
+#
+# This is the canonical multi-hop path a per-permission check cannot see:
+# "create pods" alone looks harmless.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-creator
+  namespace: production          # note: the ROLE lives in production
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: web-sa-can-create-prod-pods
+  namespace: production          # binding in production...
+subjects:
+  - kind: ServiceAccount
+    name: web-sa
+    namespace: dev               # ...granting a DEV service account. (the bug)
+roleRef:
+  kind: Role
+  name: pod-creator
+  apiGroup: rbac.authorization.k8s.io

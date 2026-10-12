@@ -1,0 +1,85 @@
+# Self-contained mini-cluster fixture for deterministic unit tests.
+# Includes the built-in cluster-admin ClusterRole so offline analysis resolves.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-admin
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: dev}
+---
+apiVersion: v1
+kind: Namespace
+metadata: {name: production}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: web-sa, namespace: dev}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: guest-sa, namespace: dev}       # benign — should never be a finding
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: admin-sa, namespace: production}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: wild-sa, namespace: production}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: admin-binding}
+subjects: [{kind: ServiceAccount, name: admin-sa, namespace: production}]
+roleRef: {kind: ClusterRole, name: cluster-admin, apiGroup: rbac.authorization.k8s.io}
+---
+# web-sa: create pods in production (the escalation)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: pod-creator, namespace: production}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: web-sa-prod-pods, namespace: production}
+subjects: [{kind: ServiceAccount, name: web-sa, namespace: dev}]
+roleRef: {kind: Role, name: pod-creator, apiGroup: rbac.authorization.k8s.io}
+---
+# guest-sa: read-only pods in dev (benign)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: viewer, namespace: dev}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: guest-viewer, namespace: dev}
+subjects: [{kind: ServiceAccount, name: guest-sa, namespace: dev}]
+roleRef: {kind: Role, name: viewer, apiGroup: rbac.authorization.k8s.io}
+---
+# wild-sa: wildcard in production
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: everything, namespace: production}
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: wild-binding, namespace: production}
+subjects: [{kind: ServiceAccount, name: wild-sa, namespace: production}]
+roleRef: {kind: Role, name: everything, apiGroup: rbac.authorization.k8s.io}

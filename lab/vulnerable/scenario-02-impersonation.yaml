@@ -1,0 +1,33 @@
+# SCENARIO 2 — Privilege escalation via ServiceAccount impersonation.
+#
+# VULNERABILITY: security/monitor-sa is granted the "impersonate" verb on
+# serviceaccounts cluster-wide. It can send API requests AS production/admin-sa
+# (cluster-admin) without ever needing a token.
+#
+# EXPECTED DETECTION:
+#   security/monitor-sa --IMPERSONATE--> production/admin-sa
+#                       --IS_CLUSTER_ADMIN--> cluster-admin   [CRITICAL, trivial]
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sa-impersonator
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["impersonate"]
+  - apiGroups: [""]
+    resources: ["users", "groups"]
+    verbs: ["impersonate"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitor-can-impersonate
+subjects:
+  - kind: ServiceAccount
+    name: monitor-sa
+    namespace: security
+roleRef:
+  kind: ClusterRole
+  name: sa-impersonator
+  apiGroup: rbac.authorization.k8s.io

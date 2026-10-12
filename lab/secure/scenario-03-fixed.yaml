@@ -1,0 +1,26 @@
+# SCENARIO 3 — FIXED. deployment-sa can patch Deployments only in its OWN
+# environment (staging), not production. The cross-namespace production grant is
+# removed by apply-secure.sh.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployment-patcher-staging
+  namespace: staging
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-sa-patch-staging
+  namespace: staging
+subjects:
+  - kind: ServiceAccount
+    name: deployment-sa
+    namespace: staging
+roleRef:
+  kind: Role
+  name: deployment-patcher-staging
+  apiGroup: rbac.authorization.k8s.io

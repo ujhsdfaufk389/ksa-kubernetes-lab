@@ -1,0 +1,20 @@
+# Ground-truth labels for the evaluation dataset.
+# positive = can reach cluster-admin (must be detected)
+# negative = benign (must NOT be flagged)
+# excluded = already cluster-admin (not an escalation source; out of scope)
+positive:
+  - sa:dev/attacker-sa      # create-pod-as
+  - sa:dev/imp-sa           # impersonate
+  - sa:dev/bind-sa          # bind verb
+  - sa:dev/sec-sa           # read secret holding admin token
+  - sa:production/tok-sa    # token request
+negative:
+  - sa:sandbox/sandbox-sa   # create pods in own ns only (no privileged SA) — naive FP
+  - sa:dev/reader-sa        # read secrets where no privileged token exists — naive FP
+  - sa:dev/ro-sa            # read-only
+  - sa:dev/default
+  - sa:production/default
+  - sa:sandbox/default
+excluded:
+  - sa:production/admin-sa
+  - sa:dev/superadmin

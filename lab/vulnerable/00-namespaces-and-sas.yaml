@@ -1,0 +1,80 @@
+# Base identities for the intentionally-vulnerable lab (LOCAL kind cluster only).
+# Namespaces and the seven ServiceAccounts used across scenarios 1-10.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    ksa-lab: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+  labels:
+    ksa-lab: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    ksa-lab: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    ksa-lab: "true"
+---
+# --- ServiceAccounts ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: web-sa            # low-priv app identity (attacker's starting point)
+  namespace: dev
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: developer-sa
+  namespace: dev
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deployment-sa
+  namespace: staging
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-sa          # HIGH-priv identity, bound to cluster-admin
+  namespace: production
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-sa
+  namespace: production
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: monitor-sa
+  namespace: security
+---
+# admin-sa is (intentionally) cluster-admin — the escalation TARGET.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-sa-cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: admin-sa
+    namespace: production
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io

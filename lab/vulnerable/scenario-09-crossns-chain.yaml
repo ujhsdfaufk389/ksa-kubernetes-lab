@@ -1,0 +1,79 @@
+# SCENARIO 9 — Multi-hop cross-namespace chain (3 hops).
+#
+#   dev/chain-a --CREATE_POD_AS@staging--> staging/chain-b
+#               --READ_SECRET_CRED@production--> production/admin-sa
+#               --IS_CLUSTER_ADMIN--> cluster-admin
+#
+# chain-a can create pods in staging; those pods run as chain-b; chain-b can read
+# Secrets in production, where a Secret holds admin-sa's token.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chain-a
+  namespace: dev
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: chain-b
+  namespace: staging
+---
+# hop 1: chain-a can create pods in staging
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-creator-staging
+  namespace: staging
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chain-a-create-staging-pods
+  namespace: staging
+subjects:
+  - kind: ServiceAccount
+    name: chain-a
+    namespace: dev
+roleRef:
+  kind: Role
+  name: pod-creator-staging
+  apiGroup: rbac.authorization.k8s.io
+---
+# hop 2: chain-b can read secrets in production
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader-prod
+  namespace: production
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chain-b-read-prod-secrets
+  namespace: production
+subjects:
+  - kind: ServiceAccount
+    name: chain-b
+    namespace: staging
+roleRef:
+  kind: Role
+  name: secret-reader-prod
+  apiGroup: rbac.authorization.k8s.io
+---
+# the production Secret that holds admin-sa's token
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-sa-token
+  namespace: production
+  annotations:
+    kubernetes.io/service-account.name: admin-sa
+type: kubernetes.io/service-account-token
